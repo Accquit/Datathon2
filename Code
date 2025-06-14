@@ -1,0 +1,61 @@
+#Imports
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import mean_squared_error
+import warnings
+warnings.filterwarnings("ignore")
+#Data
+train = pd.read_csv('/kaggle/input/burnout-datathon-ieeecsmuj/train.csv')
+test = pd.read_csv('/kaggle/input/burnout-datathon-ieeecsmuj/test.csv')
+sample_submission = pd.read_csv('/kaggle/input/burnout-datathon-ieeecsmuj/sample_submission.csv')
+#Dropping columns
+drop_cols_common = [
+    'Unique ID', 'position', 'points', 'Penalty',
+    'rider', 'Rider_ID', 'team', 'bike',
+    'rider_name', 'team_name', 'bike_name', 'shortname',
+    'weather', 'track', 'air', 'ground', 'circuit_name'
+]
+
+target = train['Lap_Time_Seconds']
+train_clean = train.drop(columns=drop_cols_common + ['Lap_Time_Seconds'])
+test_clean = test.drop(columns=drop_cols_common)
+#Features
+combined = pd.concat([train_clean, test_clean], axis=0)
+categorical_cols = combined.select_dtypes(include='object').columns
+
+le = LabelEncoder()
+for col in categorical_cols:
+    combined[col] = le.fit_transform(combined[col].astype(str))
+#Splitting
+X_train = combined.iloc[:len(train)]
+X_test = combined.iloc[len(train):]
+y_train = target
+#Validation
+X_tr, X_val, y_tr, y_val = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
+#Train Random Firest
+model = RandomForestRegressor(
+    n_estimators=300,
+    max_depth=25,
+    min_samples_split=4,
+    min_samples_leaf=2,
+    max_features='sqrt',
+    random_state=42,
+    n_jobs=-1
+)
+model.fit(X_tr, y_tr)
+ #Validate
+val_preds = model.predict(X_val)
+val_rmse = np.sqrt(mean_squared_error(y_val, val_preds))
+print("🧠 Validation RMSE (Optimized):", val_rmse)
+
+#Traun Full data
+model.fit(X_train, y_train)
+#submission
+test_preds = model.predict(X_test)
+submission = sample_submission.copy()
+submission['Lap_Time_Seconds'] = test_preds
+submission.to_csv('solution.csv', index=False)
+print("✅ Submission file 'solution.csv' saved.")
